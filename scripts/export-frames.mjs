@@ -20,7 +20,7 @@ import { mkdir } from 'node:fs/promises';
 const URL   = process.env.URL   || 'http://127.0.0.1:5178/index.html?clean=1';
 const FPS   = Number(process.env.FPS   || 60);
 const OUT   = process.env.OUT   || 'frames';
-const SCALE = Number(process.env.SCALE || 1);   // 1 = 1920x1080, 0.5 = 960x540
+const SCALE = Number(process.env.SCALE || 1);   // 1 = ukuran stage (1920x1080 / 1080x1920), 0.5 = separuh
 
 await mkdir(OUT, { recursive: true });
 
@@ -37,9 +37,14 @@ await page.waitForFunction('window.OPENER && window.OPENER.ready && (!window.OPE
 await page.evaluate(() => document.fonts.ready);
 await page.evaluate(() => { window.OPENER.tl.pause(0); });
 
+// ukuran stage dari halaman (16:9 1920x1080, 9:16 1080x1920, 1:1 ...), bukan dikunci 16:9
+const { W, H } = await page.evaluate(() => ({ W: window.OPENER.W || 1920, H: window.OPENER.H || 1080 }));
+await page.setViewport({ width: W, height: H, deviceScaleFactor: SCALE });
+await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+
 const DURATION = await page.evaluate(() => window.OPENER.DURATION);
 const total = Math.ceil(DURATION * FPS);
-console.log(`${total} frame @ ${FPS} fps (${DURATION}s) -> ${OUT}/`);
+console.log(`${total} frame @ ${FPS} fps (${DURATION}s, ${W}x${H}) -> ${OUT}/`);
 
 for(let i = 0; i < total; i++){
   const t = i / FPS;
@@ -54,7 +59,7 @@ for(let i = 0; i < total; i++){
 
   await page.screenshot({
     path: `${OUT}/f${String(i).padStart(5, '0')}.png`,
-    clip: { x: 0, y: 0, width: 1920, height: 1080 },
+    clip: { x: 0, y: 0, width: W, height: H },
     optimizeForSpeed: true,
   });
 
